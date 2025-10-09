@@ -1,115 +1,37 @@
 `include "uvm_macros.svh"
 import uvm_pkg::*;
 
-// ----------------------------------------------------
-// Test: cfg_test
-// ----------------------------------------------------
 class cfg_test extends uvm_test;
   `uvm_component_utils(cfg_test)
 
-  uvm_component env_h;
-  string tn;
+  zip_env   env;
+  cfg_seq   seq;
 
-  function new(string name="cfg_test", uvm_component parent=null);
+  function new(string name = "cfg_test", uvm_component parent = null);
     super.new(name, parent);
   endfunction
 
   function void build_phase(uvm_phase phase);
+    // ---- declara????es primeiro ----
+    string tn;
+    // ------------------------------
+
     super.build_phase(phase);
 
-    // Read +TESTNAME=<name> (default "xp10")
-    if (!uvm_cmdline_processor::get_inst().get_arg_value("+TESTNAME=", tn))
-      tn = "xp10";
-    `uvm_info("CFGTEST", $sformatf("Selected testname: %0s", tn), UVM_LOW)
+    if (env == null)
+      env = zip_env::type_id::create("env", this);
 
-    // Try to find or create the environment
-    env_h = uvm_top.find("uvm_test_top.env");
-    if (env_h == null) begin
-      uvm_factory f = uvm_factory::get();
-      env_h = f.create_component_by_name("zip_env", get_full_name(), "env", this);
-      if (env_h == null)
-        `uvm_fatal("NOENV", "Could not find or create environment 'uvm_test_top.env'")
-    end
+    if (!uvm_config_db#(string)::get(this, "", "testname", tn))
+      tn = "unknown";
+
+    seq = cfg_seq::type_id::create("seq");
+    seq.testname = tn;
   endfunction
 
   task run_phase(uvm_phase phase);
-    uvm_sequence_base   cseq;
-    uvm_sequence_base   ibseq;
-    uvm_sequencer_base  apb_seqr;
-    uvm_sequencer_base  ib_seqr;
-    uvm_factory         f;
-    uvm_object          o;
-
     phase.raise_objection(this);
-
-    // Factory handle
-    f = uvm_factory::get();
-
-    // Get sequencers by absolute path
-    void'(uvm_config_db#(uvm_sequencer_base)::get(
-          this, "uvm_test_top.env.apb", "m_sequencer", apb_seqr));
-
-    if (apb_seqr != null) begin
-      o = f.create_object_by_name("cfg_seq", "cseq", get_full_name());
-      if (!$cast(cseq, o)) begin
-        `uvm_warning("CFGTEST", "Factory could not create 'cfg_seq' as a sequence; skipping")
-      end
-      else begi
-    end
-    else begin
-      `uvm_warning("CFGTEST", "APB m_sequencer not found; skipping cfg_seq")
-    end
-
-    // IB side
-    void'(uvm_config_db#(uvm_sequencer_base)::get(
-          this, "uvm_test_top.env.ib", "m_sequencer", ib_seqr));
-
-    if (ib_seqr != null) begin
-      o = f.create_object_by_name("ib_smoke_seq", "ibseq", get_full_name());
-      if (!$cast(ibseq, o)) begin
-        `uvm_warning("CFGTEST", "Factory could not create 'ib_smoke_seq' as a sequence; skipping")
-      end
-      else begin
-        void'(ibseq.randomize());
-        ibseq.start(ib_seqr);
-      end
-    end
-    else begin
-      `uvm_warning("CFGTEST", "IB m_sequencer not found; skipping ib_smoke_seq")
-    end
-
+    // ajuste o caminho do sequencer se o seu env for diferente
+    seq.start(env.apb.m_sequencer);
     phase.drop_objection(this);
   endtask
-
-endclass : cfg_test
-n
-        void'(cseq.randomize());
-        cseq.start(apb_seqr);
-      end
-    end
-    else begin
-      `uvm_warning("CFGTEST", "APB m_sequencer not found; skipping cfg_seq")
-    end
-
-    // IB side
-    void'(uvm_config_db#(uvm_sequencer_base)::get(
-          this, "uvm_test_top.env.ib", "m_sequencer", ib_seqr));
-
-    if (ib_seqr != null) begin
-      o = f.create_object_by_name("ib_smoke_seq", "ibseq", get_full_name());
-      if (!$cast(ibseq, o)) begin
-        `uvm_warning("CFGTEST", "Factory could not create 'ib_smoke_seq' as a sequence; skipping")
-      end
-      else begin
-        void'(ibseq.randomize());
-        ibseq.start(ib_seqr);
-      end
-    end
-    else begin
-      `uvm_warning("CFGTEST", "IB m_sequencer not found; skipping ib_smoke_seq")
-    end
-
-    phase.drop_objection(this);
-  endtask
-
-endclass : cfg_test
+endclass
